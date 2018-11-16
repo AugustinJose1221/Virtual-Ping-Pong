@@ -1,192 +1,170 @@
-import numpy as np
-import os
-import gym
-from gym import error, spaces
-from gym import utils
-from gym.utils import seeding
-'''
-try:
-    import atari_py
-except ImportError as e:
-    raise error.DependencyNotInstalled("{}. (HINT: you can install Atari dependencies by running 'pip install gym[atari]'.)".format(e))
-'''
-def to_ram(ale):
-    ram_size = ale.getRAMSize()
-    ram = np.zeros((ram_size),dtype=np.uint8)
-    ale.getRAM(ram)
-    return ram
+#PONG pygame
 
-class AtariEnv(gym.Env, utils.EzPickle):
-    metadata = {'render.modes': ['human', 'rgb_array']}
+import random
+import pygame, sys
+from pygame.locals import *
 
-    def __init__(self, game='pong', obs_type='ram', frameskip=(2, 5), repeat_action_probability=0.):
-        """Frameskip should be either a tuple (indicating a random range to
-        choose from, with the top value exclude), or an int."""
+pygame.init()
+fps = pygame.time.Clock()
 
-        utils.EzPickle.__init__(self, game, obs_type, frameskip, repeat_action_probability)
-        assert obs_type in ('ram', 'image')
+#colors
+WHITE = (255,255,255)
+RED = (255,0,0)
+GREEN = (0,255,0)
+BLACK = (0,0,0)
 
-        self.game_path = atari_py.get_game_path(game)
-        if not os.path.exists(self.game_path):
-            raise IOError('You asked for game %s but path %s does not exist'%(game, self.game_path))
-        self._obs_type = obs_type
-        self.frameskip = frameskip
-        self.ale = atari_py.ALEInterface()
-        self.viewer = None
+#globals
+WIDTH = 600
+HEIGHT = 400       
+BALL_RADIUS = 20
+PAD_WIDTH = 8
+PAD_HEIGHT = 80
+HALF_PAD_WIDTH = PAD_WIDTH // 2
+HALF_PAD_HEIGHT = PAD_HEIGHT // 2
+ball_pos = [0,0]
+ball_vel = [0,0]
+paddle1_vel = 0
+paddle2_vel = 0
+l_score = 0
+r_score = 0
 
-        # Tune (or disable) ALE's action repeat:
-        # https://github.com/openai/gym/issues/349
-        assert isinstance(repeat_action_probability, (float, int)), "Invalid repeat_action_probability: {!r}".format(repeat_action_probability)
-        self.ale.setFloat('repeat_action_probability'.encode('utf-8'), repeat_action_probability)
+#canvas declaration
+window = pygame.display.set_mode((WIDTH, HEIGHT), 0, 32)
+pygame.display.set_caption('Hello World')
 
-        self.seed()
+# helper function that spawns a ball, returns a position vector and a velocity vector
+# if right is True, spawn to the right, else spawn to the left
+def ball_init(right):
+    global ball_pos, ball_vel # these are vectors stored as lists
+    ball_pos = [WIDTH//2,HEIGHT//2]
+    horz = random.randrange(2,4)
+    vert = random.randrange(1,3)
+    
+    if right == False:
+        horz = - horz
+        
+    ball_vel = [horz,-vert]
 
-        self._action_set = self.ale.getMinimalActionSet()
-        self.action_space = spaces.Discrete(len(self._action_set))
+# define event handlers
+def init():
+    global paddle1_pos, paddle2_pos, paddle1_vel, paddle2_vel,l_score,r_score  # these are floats
+    global score1, score2  # these are ints
+    paddle1_pos = [HALF_PAD_WIDTH - 1,HEIGHT//2]
+    paddle2_pos = [WIDTH +1 - HALF_PAD_WIDTH,HEIGHT//2]
+    l_score = 0
+    r_score = 0
+    if random.randrange(0,2) == 0:
+        ball_init(True)
+    else:
+        ball_init(False)
 
-        (screen_width,screen_height) = self.ale.getScreenDims()
-        if self._obs_type == 'ram':
-            self.observation_space = spaces.Box(low=0, high=255, dtype=np.uint8, shape=(128,))
-        elif self._obs_type == 'image':
-            self.observation_space = spaces.Box(low=0, high=255, shape=(screen_height, screen_width, 3), dtype=np.uint8)
-        else:
-            raise error.Error('Unrecognized observation type: {}'.format(self._obs_type))
 
-    def seed(self, seed=None):
-        self.np_random, seed1 = seeding.np_random(seed)
-        # Derive a random seed. This gets passed as a uint, but gets
-        # checked as an int elsewhere, so we need to keep it below
-        # 2**31.
-        seed2 = seeding.hash_seed(seed1 + 1) % 2**31
-        # Empirically, we need to seed before loading the ROM.
-        self.ale.setInt(b'random_seed', seed2)
-        self.ale.loadROM(self.game_path)
-        return [seed1, seed2]
+#draw function of canvas
+def draw(canvas):
+    global paddle1_pos, paddle2_pos, ball_pos, ball_vel, l_score, r_score
+           
+    canvas.fill(BLACK)
+    pygame.draw.line(canvas, WHITE, [WIDTH // 2, 0],[WIDTH // 2, HEIGHT], 1)
+    pygame.draw.line(canvas, WHITE, [PAD_WIDTH, 0],[PAD_WIDTH, HEIGHT], 1)
+    pygame.draw.line(canvas, WHITE, [WIDTH - PAD_WIDTH, 0],[WIDTH - PAD_WIDTH, HEIGHT], 1)
+    pygame.draw.circle(canvas, WHITE, [WIDTH//2, HEIGHT//2], 70, 1)
 
-    def step(self, a):
-        reward = 0.0
-        action = self._action_set[a]
+    # update paddle's vertical position, keep paddle on the screen
+    if paddle1_pos[1] > HALF_PAD_HEIGHT and paddle1_pos[1] < HEIGHT - HALF_PAD_HEIGHT:
+        paddle1_pos[1] += paddle1_vel
+    elif paddle1_pos[1] == HALF_PAD_HEIGHT and paddle1_vel > 0:
+        paddle1_pos[1] += paddle1_vel
+    elif paddle1_pos[1] == HEIGHT - HALF_PAD_HEIGHT and paddle1_vel < 0:
+        paddle1_pos[1] += paddle1_vel
+    
+    if paddle2_pos[1] > HALF_PAD_HEIGHT and paddle2_pos[1] < HEIGHT - HALF_PAD_HEIGHT:
+        paddle2_pos[1] += paddle2_vel
+    elif paddle2_pos[1] == HALF_PAD_HEIGHT and paddle2_vel > 0:
+        paddle2_pos[1] += paddle2_vel
+    elif paddle2_pos[1] == HEIGHT - HALF_PAD_HEIGHT and paddle2_vel < 0:
+        paddle2_pos[1] += paddle2_vel
 
-        if isinstance(self.frameskip, int):
-            num_steps = self.frameskip
-        else:
-            num_steps = self.np_random.randint(self.frameskip[0], self.frameskip[1])
-        for _ in range(num_steps):
-            reward += self.ale.act(action)
-        ob = self._get_obs()
+    #update ball
+    ball_pos[0] += int(ball_vel[0])
+    ball_pos[1] += int(ball_vel[1])
 
-        return ob, reward, self.ale.game_over(), {"ale.lives": self.ale.lives()}
+    #draw paddles and ball
+    pygame.draw.circle(canvas, RED, ball_pos, 20, 0)
+    pygame.draw.polygon(canvas, GREEN, [[paddle1_pos[0] - HALF_PAD_WIDTH, paddle1_pos[1] - HALF_PAD_HEIGHT], [paddle1_pos[0] - HALF_PAD_WIDTH, paddle1_pos[1] + HALF_PAD_HEIGHT], [paddle1_pos[0] + HALF_PAD_WIDTH, paddle1_pos[1] + HALF_PAD_HEIGHT], [paddle1_pos[0] + HALF_PAD_WIDTH, paddle1_pos[1] - HALF_PAD_HEIGHT]], 0)
+    pygame.draw.polygon(canvas, GREEN, [[paddle2_pos[0] - HALF_PAD_WIDTH, paddle2_pos[1] - HALF_PAD_HEIGHT], [paddle2_pos[0] - HALF_PAD_WIDTH, paddle2_pos[1] + HALF_PAD_HEIGHT], [paddle2_pos[0] + HALF_PAD_WIDTH, paddle2_pos[1] + HALF_PAD_HEIGHT], [paddle2_pos[0] + HALF_PAD_WIDTH, paddle2_pos[1] - HALF_PAD_HEIGHT]], 0)
 
-    def _get_image(self):
-        return self.ale.getScreenRGB2()
+    #ball collision check on top and bottom walls
+    if int(ball_pos[1]) <= BALL_RADIUS:
+        ball_vel[1] = - ball_vel[1]
+    if int(ball_pos[1]) >= HEIGHT + 1 - BALL_RADIUS:
+        ball_vel[1] = -ball_vel[1]
+    
+    #ball collison check on gutters or paddles
+    if int(ball_pos[0]) <= BALL_RADIUS + PAD_WIDTH and int(ball_pos[1]) in range(paddle1_pos[1] - HALF_PAD_HEIGHT,paddle1_pos[1] + HALF_PAD_HEIGHT,1):
+        ball_vel[0] = -ball_vel[0]
+        ball_vel[0] *= 1.1
+        ball_vel[1] *= 1.1
+    elif int(ball_pos[0]) <= BALL_RADIUS + PAD_WIDTH:
+        r_score += 1
+        ball_init(True)
+        
+    if int(ball_pos[0]) >= WIDTH + 1 - BALL_RADIUS - PAD_WIDTH and int(ball_pos[1]) in range(paddle2_pos[1] - HALF_PAD_HEIGHT,paddle2_pos[1] + HALF_PAD_HEIGHT,1):
+        ball_vel[0] = -ball_vel[0]
+        ball_vel[0] *= 1.1
+        ball_vel[1] *= 1.1
+    elif int(ball_pos[0]) >= WIDTH + 1 - BALL_RADIUS - PAD_WIDTH:
+        l_score += 1
+        ball_init(False)
 
-    def _get_ram(self):
-        return to_ram(self.ale)
+    #update scores
+    myfont1 = pygame.font.SysFont("Comic Sans MS", 20)
+    label1 = myfont1.render("Score "+str(l_score), 1, (255,255,0))
+    canvas.blit(label1, (50,20))
 
-    @property
-    def _n_actions(self):
-        return len(self._action_set)
+    myfont2 = pygame.font.SysFont("Comic Sans MS", 20)
+    label2 = myfont2.render("Score "+str(r_score), 1, (255,255,0))
+    canvas.blit(label2, (470, 20))  
+    
+    
+#keydown handler
+def keydown(event):
+    global paddle1_vel, paddle2_vel
+    
+    if event.key == K_UP:
+        paddle2_vel = -8
+    elif event.key == K_DOWN:
+        paddle2_vel = 8
+    elif event.key == K_w:
+        paddle1_vel = -8
+    elif event.key == K_s:
+        paddle1_vel = 8
 
-    def _get_obs(self):
-        if self._obs_type == 'ram':
-            return self._get_ram()
-        elif self._obs_type == 'image':
-            img = self._get_image()
-        return img
+#keyup handler
+def keyup(event):
+    global paddle1_vel, paddle2_vel
+    
+    if event.key in (K_w, K_s):
+        paddle1_vel = 0
+    elif event.key in (K_UP, K_DOWN):
+        paddle2_vel = 0
 
-    # return: (states, observations)
-    def reset(self):
-        self.ale.reset_game()
-        return self._get_obs()
+init()
 
-    def render(self, mode='human'):
-        img = self._get_image()
-        if mode == 'rgb_array':
-            return img
-        elif mode == 'human':
-            from gym.envs.classic_control import rendering
-            if self.viewer is None:
-                self.viewer = rendering.SimpleImageViewer()
-            self.viewer.imshow(img)
-            return self.viewer.isopen
 
-    def close(self):
-        if self.viewer is not None:
-            self.viewer.close()
-            self.viewer = None
+#game loop
+while True:
 
-    def get_action_meanings(self):
-        return [ACTION_MEANING[i] for i in self._action_set]
+    draw(window)
 
-    def get_keys_to_action(self):
-        KEYWORD_TO_KEY = {
-            'UP':      ord('w'),
-            'DOWN':    ord('s'),
-            'LEFT':    ord('a'),
-            'RIGHT':   ord('d'),
-            'FIRE':    ord(' '),
-        }
+    for event in pygame.event.get():
 
-        keys_to_action = {}
-
-        for action_id, action_meaning in enumerate(self.get_action_meanings()):
-            keys = []
-            for keyword, key in KEYWORD_TO_KEY.items():
-                if keyword in action_meaning:
-                    keys.append(key)
-            keys = tuple(sorted(keys))
-
-            assert keys not in keys_to_action
-            keys_to_action[keys] = action_id
-
-        return keys_to_action
-
-    def clone_state(self):
-        """Clone emulator state w/o system state. Restoring this state will
-        *not* give an identical environment. For complete cloning and restoring
-        of the full state, see `{clone,restore}_full_state()`."""
-        state_ref = self.ale.cloneState()
-        state = self.ale.encodeState(state_ref)
-        self.ale.deleteState(state_ref)
-        return state
-
-    def restore_state(self, state):
-        """Restore emulator state w/o system state."""
-        state_ref = self.ale.decodeState(state)
-        self.ale.restoreState(state_ref)
-        self.ale.deleteState(state_ref)
-
-    def clone_full_state(self):
-        """Clone emulator state w/ system state including pseudorandomness.
-        Restoring this state will give an identical environment."""
-        state_ref = self.ale.cloneSystemState()
-        state = self.ale.encodeState(state_ref)
-        self.ale.deleteState(state_ref)
-        return state
-
-    def restore_full_state(self, state):
-        """Restore emulator state w/ system state including pseudorandomness."""
-        state_ref = self.ale.decodeState(state)
-        self.ale.restoreSystemState(state_ref)
-        self.ale.deleteState(state_ref)
-
-ACTION_MEANING = {
-    0 : "NOOP",
-    1 : "FIRE",
-    2 : "UP",
-    3 : "RIGHT",
-    4 : "LEFT",
-    5 : "DOWN",
-    6 : "UPRIGHT",
-    7 : "UPLEFT",
-    8 : "DOWNRIGHT",
-    9 : "DOWNLEFT",
-    10 : "UPFIRE",
-    11 : "RIGHTFIRE",
-    12 : "LEFTFIRE",
-    13 : "DOWNFIRE",
-    14 : "UPRIGHTFIRE",
-    15 : "UPLEFTFIRE",
-    16 : "DOWNRIGHTFIRE",
-    17 : "DOWNLEFTFIRE",
-}
+        if event.type == KEYDOWN:
+            keydown(event)
+        elif event.type == KEYUP:
+            keyup(event)
+        elif event.type == QUIT:
+            pygame.quit()
+            sys.exit()
+            
+    pygame.display.update()
+    fps.tick(60)
