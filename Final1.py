@@ -3,7 +3,7 @@
 """
 Created on Fri Nov 16 00:05:03 2018
 
-@author: abhijithneilabraham
+
 """
 
 import numpy as np
@@ -181,9 +181,9 @@ while True:
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     blur = cv2.GaussianBlur(hsv,(5,5),5)
     
-    lower_blue = np.array([0,150,150])
-    upper_blue = np.array([30,255,255])
-    mask = cv2.inRange(blur, lower_blue, upper_blue)
+    lower_orange = np.array([0,150,150])
+    upper_orange = np.array([30,255,255])
+    mask = cv2.inRange(blur, lower_orange, upper_orange)
     ret, thresh_img = cv2.threshold(mask,91,255,cv2.THRESH_BINARY)
     contours =  cv2.findContours(thresh_img,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)[-2]
     M = cv2.moments(mask)
